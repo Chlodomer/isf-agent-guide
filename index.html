@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building an AI Grant Writing Agent — High AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --charcoal: #1C1C1C;
+    --deep-charcoal: #2A2A2A;
+    --amber: #E8A838;
+    --bronze: #C48B28;
+    --cream: #F5F3EF;
+    --stone: #E8E4DC;
+    --slate: #6B6B6B;
+    --ivory: #FFFDF8;
+    --glow: rgba(232,168,56,0.12);
+    --glow-s: rgba(232,168,56,0.25);
+    --sidebar-w: 260px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 17px;
+    line-height: 1.75;
+    color: var(--charcoal);
+    background: var(--ivory);
+    overflow-x: hidden;
+  }
+
+  /* ═══════ SCROLL PROGRESS ═══════ */
+  .scroll-progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--bronze), var(--amber));
+    z-index: 2001; transition: width 0.15s linear; will-change: width;
+  }
+
+  /* ═══════ SIDEBAR ═══════ */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--charcoal);
+    z-index: 2000;
+    display: flex; flex-direction: column;
+    transform: translateX(0);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid rgba(232,168,56,0.15);
+  }
+
+  .sidebar.collapsed { transform: translateX(calc(-1 * var(--sidebar-w))); }
+
+  .sidebar-brand {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sidebar-brand .brand-wordmark {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  }
+
+  .sidebar-brand .brand-icon {
+    width: 36px; height: 36px; background: var(--amber);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px; color: var(--charcoal);
+    border-radius: 4px; flex-shrink: 0;
+  }
+
+  .sidebar-brand .brand-text {
+    font-size: 16px; font-weight: 700; color: var(--ivory);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  .sidebar-brand .brand-text span { color: var(--amber); }
+
+  .sidebar-brand .brand-sub {
+    font-size: 11px; color: var(--slate); margin-top: 2px;
+    letter-spacing: 0.3px;
+  }
+
+  .sidebar-nav {
+    flex: 1; overflow-y: auto; padding: 16px 0;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .sidebar-nav::-webkit-scrollbar { width: 4px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .sidebar-label {
+    font-size: 10px; font-weight: 600; color: var(--slate);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    padding: 12px 24px 6px;
+  }
+
+  .sidebar-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 24px; color: rgba(255,255,255,0.5);
+    text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.2s; border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+
+  .sidebar-link:hover {
+    color: var(--ivory); background: rgba(255,255,255,0.04);
+  }
+
+  .sidebar-link.active {
+    color: var(--amber); background: var(--glow);
+    border-left-color: var(--amber);
+  }
+
+  .sidebar-link .link-icon {
+    width: 18px; height: 18px; flex-shrink: 0; opacity: 0.6;
+  }
+
+  .sidebar-link.active .link-icon { opacity: 1; }
+
+  .sidebar-footer {
+    padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px; color: var(--slate); line-height: 1.6;
+  }
+
+  .sidebar-footer strong { color: rgba(255,255,255,0.4); font-weight: 500; }
+
+  /* Toggle button */
+  .sidebar-toggle {
+    position: fixed; top: 16px; left: 16px; z-index: 2002;
+    width: 40px; height: 40px;
+    background: var(--charcoal); border: 1px solid rgba(232,168,56,0.3);
+    border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .sidebar-toggle:hover {
+    background: var(--deep-charcoal); border-color: var(--amber);
+  }
+
+  .sidebar-toggle svg { transition: transform 0.3s; }
+  .sidebar-toggle.open svg { transform: rotate(180deg); }
+
+  /* Main content shift */
+  .main-wrap {
+    margin-left: var(--sidebar-w);
+    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .main-wrap.expanded { margin-left: 0; }
+
+  /* ═══════ COVER ═══════ */
+  .cover {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    background: var(--charcoal);
+    color: var(--ivory); text-align: center;
+    padding: 80px 40px;
+    position: relative; overflow: hidden;
+    scroll-snap-align: start;
+  }
+
+  .cover::before {
+    content: ''; position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 55% 45%, rgba(232,168,56,0.07) 0%, transparent 55%);
+    animation: coverGlow 10s ease-in-out infinite alternate;
+  }
+
+  @keyframes coverGlow {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(-3%, 4%) scale(1.05); }
+  }
+
+  .cover > * { position: relative; z-index: 1; }
+
+  .cover-brand {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 56px;
+    animation: coverFade 1s 0s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cover-brand .cb-icon {
+    width: 48px; height: 48px; background: var(--amber);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 24px; color: var(--charcoal);
+    border-radius: 6px;
+  }
+
+  .cover-brand .cb-text {
+    font-size: 18px; font-weight: 700; color: var(--ivory);
+    letter-spacing: 3px; text-transform: uppercase;
+  }
+
+  .cover-brand .cb-text span { color: var(--amber); }
+
+  .cover h1 {
+    font-size: clamp(36px, 5.5vw, 54px);
+    font-weight: 800; letter-spacing: -1.5px; line-height: 1.1;
+    margin-bottom: 16px;
+    animation: coverFade 1s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cover h1 span { color: var(--amber); }
+
+  .cover .subtitle {
+    font-size: clamp(16px, 2.2vw, 21px);
+    font-weight: 300; color: var(--stone); margin-bottom: 56px;
+    animation: coverFade 1s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cover .cover-meta {
+    font-size: 14px; color: var(--slate); line-height: 2.2;
+    animation: coverFade 1s 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cover .cover-meta strong { color: var(--stone); font-weight: 500; }
+
+  .cover .cover-line {
+    width: 56px; height: 3px; background: var(--amber);
+    margin: 28px auto;
+    animation: coverFade 1s 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .cover .scroll-cue {
+    position: absolute; bottom: 36px;
+    animation: cueFloat 2.5s ease-in-out infinite;
+    color: var(--slate); font-size: 12px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+  }
+
+  @keyframes cueFloat {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(6px); opacity: 1; }
+  }
+
+  @keyframes coverFade {
+    from { opacity: 0; transform: translateY(20px); filter: blur(4px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+
+  /* ═══════ CONTENT SECTIONS ═══════ */
+  .content {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  .snap-section {
+    scroll-snap-align: start;
+    padding-top: 72px;
+    padding-bottom: 40px;
+    min-height: 50vh;
+  }
+
+  /* ═══════ REVEAL ANIMATIONS ═══════ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    filter: blur(3px);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                filter 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.visible {
+    opacity: 1; transform: translateY(0); filter: blur(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+
+  /* ═══════ HEADINGS ═══════ */
+  h2 {
+    font-size: 32px; font-weight: 700; color: var(--charcoal);
+    margin-bottom: 24px; letter-spacing: -0.5px;
+    padding-bottom: 14px;
+    border-bottom: 3px solid var(--amber);
+    display: flex; align-items: center; gap: 14px;
+  }
+
+  h2 .h-icon {
+    width: 32px; height: 32px; flex-shrink: 0;
+  }
+
+  h3 {
+    font-size: 21px; font-weight: 600;
+    color: var(--deep-charcoal);
+    margin-top: 40px; margin-bottom: 16px;
+  }
+
+  p { margin-bottom: 16px; color: var(--deep-charcoal); }
+  ul, ol { margin-bottom: 16px; padding-left: 24px; }
+  li { margin-bottom: 8px; color: var(--deep-charcoal); }
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--slate); }
+
+  code {
+    background: var(--stone); padding: 2px 8px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    color: var(--deep-charcoal);
+  }
+
+  /* ═══════ CALLOUTS ═══════ */
+  .callout {
+    background: var(--cream); border-left: 4px solid var(--amber);
+    padding: 20px 24px; margin: 24px 0; font-size: 17px;
+    font-style: italic; color: var(--deep-charcoal);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .callout strong { font-style: normal; color: var(--charcoal); }
+
+  .callout-dark {
+    background: var(--charcoal); border-left: 4px solid var(--amber);
+    padding: 20px 24px; margin: 24px 0; color: var(--stone);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .callout-dark strong { color: var(--amber); }
+
+  /* ═══════ ARCHITECTURE MODULES ═══════ */
+  .arch-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; margin: 24px 0;
+  }
+
+  .arch-module {
+    background: var(--cream); border: 2px solid var(--stone);
+    border-radius: 10px; padding: 22px 16px; text-align: center;
+    cursor: pointer;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .arch-module:hover {
+    border-color: var(--amber); background: var(--glow);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(232,168,56,0.12);
+  }
+
+  .arch-module.active {
+    border-color: var(--amber); background: var(--glow-s);
+    transform: translateY(-2px);
+  }
+
+  .arch-module .mod-icon { margin-bottom: 10px; display: block; }
+  .arch-module .mod-icon svg { width: 30px; height: 30px; }
+
+  .arch-module .mod-name {
+    font-weight: 600; font-size: 13px; color: var(--charcoal);
+    display: block; line-height: 1.3;
+  }
+
+  .arch-module .mod-file {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--slate); display: block; margin-top: 6px;
+  }
+
+  .arch-state {
+    grid-column: 1 / -1; background: var(--charcoal);
+    border-color: var(--deep-charcoal);
+  }
+
+  .arch-state:hover { background: var(--deep-charcoal); }
+  .arch-state .mod-name { color: var(--amber); }
+  .arch-state .mod-file { color: var(--slate); }
+
+  .arch-detail {
+    background: var(--charcoal); color: var(--stone);
+    padding: 24px; margin: 12px 0 24px; border-radius: 10px;
+    border-left: 4px solid var(--amber);
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.4s ease, padding 0.4s ease, margin 0.4s ease;
+    padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0;
+  }
+
+  .arch-detail.show {
+    max-height: 300px; opacity: 1;
+    padding: 24px; margin: 12px 0 24px;
+  }
+
+  .arch-detail h4 { color: var(--amber); margin-bottom: 10px; font-size: 17px; }
+  .arch-detail p { color: var(--stone); margin-bottom: 6px; font-size: 15px; line-height: 1.7; }
+  .arch-detail code { background: rgba(255,255,255,0.1); color: var(--amber); }
+
+  /* ═══════ PHASE TIMELINE ═══════ */
+  .phase-timeline { position: relative; margin: 28px 0; }
+
+  .phase-timeline::before {
+    content: ''; position: absolute; left: 23px; top: 0; bottom: 0;
+    width: 3px; background: var(--stone); border-radius: 2px;
+  }
+
+  .phase-item {
+    position: relative; padding-left: 60px; margin-bottom: 8px; cursor: pointer;
+  }
+
+  .phase-dot {
+    position: absolute; left: 13px; top: 16px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--stone); border: 3px solid var(--ivory);
+    transition: all 0.3s; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: transparent;
+  }
+
+  .phase-item:hover .phase-dot, .phase-item.open .phase-dot {
+    background: var(--amber); color: var(--charcoal);
+  }
+
+  .phase-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 18px; background: var(--cream);
+    border-radius: 8px; border: 1px solid transparent;
+    transition: all 0.25s;
+  }
+
+  .phase-item:hover .phase-header { border-color: var(--amber); background: var(--glow); }
+
+  .phase-item.open .phase-header {
+    border-color: var(--amber); background: var(--glow);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .phase-badge {
+    background: var(--amber); color: var(--charcoal);
+    font-weight: 700; font-size: 11px; padding: 3px 10px;
+    border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .phase-title { font-weight: 600; font-size: 16px; color: var(--charcoal); flex: 1; }
+
+  .phase-chevron {
+    width: 18px; height: 18px; transition: transform 0.35s;
+  }
+
+  .phase-item.open .phase-chevron { transform: rotate(180deg); }
+
+  .phase-body {
+    max-height: 0; overflow: hidden; opacity: 0;
+    background: white; border: 1px solid var(--stone); border-top: none;
+    border-radius: 0 0 8px 8px; padding: 0 24px;
+    transition: max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.4s ease, padding 0.4s ease;
+  }
+
+  .phase-item.open .phase-body {
+    max-height: 600px; opacity: 1; padding: 24px;
+  }
+
+  .phase-body p { font-size: 15px; }
+  .phase-body ul, .phase-body ol { font-size: 15px; }
+
+  /* ═══════ TABS ═══════ */
+  .tabs { margin: 24px 0; }
+
+  .tab-buttons {
+    display: flex; gap: 4px;
+    border-bottom: 2px solid var(--stone);
+  }
+
+  .tab-btn {
+    padding: 12px 20px; border: none; background: none;
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+    color: var(--slate); cursor: pointer;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: all 0.2s; white-space: nowrap;
+  }
+
+  .tab-btn:hover { color: var(--charcoal); }
+  .tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+  .tab-panel {
+    display: none; padding: 24px 0;
+    animation: panelIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tab-panel.active { display: block; }
+
+  @keyframes panelIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ═══════ COMMAND CARDS ═══════ */
+  .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .cmd-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 13px 16px; background: var(--cream);
+    border-radius: 8px; border: 1px solid var(--stone);
+    transition: all 0.25s; cursor: default;
+  }
+
+  .cmd-card:hover {
+    border-color: var(--amber); background: var(--glow);
+    transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+  }
+
+  .cmd-card .cmd-name {
+    font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    font-size: 12px; color: var(--bronze); white-space: nowrap;
+    background: rgba(196,139,40,0.1); padding: 2px 8px;
+    border-radius: 4px; flex-shrink: 0;
+  }
+
+  .cmd-card .cmd-desc { font-size: 13px; color: var(--deep-charcoal); line-height: 1.5; }
+
+  /* ═══════ SIMULATOR ═══════ */
+  .sim-container {
+    background: var(--charcoal); border-radius: 12px;
+    overflow: hidden; margin: 24px 0;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .sim-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; background: var(--deep-charcoal);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sim-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .sim-dot.r { background: #FF5F57; }
+  .sim-dot.y { background: #FEBC2E; }
+  .sim-dot.g { background: #28C840; }
+
+  .sim-title {
+    flex: 1; text-align: center; color: var(--slate);
+    font-size: 12px; font-weight: 500;
+  }
+
+  .sim-body {
+    padding: 24px; max-height: 480px; overflow-y: auto;
+    font-size: 14px; line-height: 1.7;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .sim-msg {
+    margin-bottom: 14px; opacity: 0; transform: translateY(10px) scale(0.98);
+    filter: blur(2px);
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .sim-msg.visible { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+
+  .sim-msg .sim-role {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 5px;
+  }
+
+  .sim-msg.agent .sim-role { color: var(--amber); }
+  .sim-msg.user .sim-role { color: #7EC8E3; }
+
+  .sim-msg .sim-text {
+    color: var(--stone); padding: 12px 16px; border-radius: 8px; font-size: 14px;
+  }
+
+  .sim-msg.agent .sim-text { background: rgba(255,255,255,0.04); border-left: 3px solid var(--amber); }
+  .sim-msg.user .sim-text { background: rgba(126,200,227,0.08); border-left: 3px solid #7EC8E3; }
+  .sim-msg .sim-text strong { color: var(--ivory); }
+  .sim-msg .sim-text em { color: var(--slate); }
+  .sim-msg .sim-text code {
+    background: rgba(255,255,255,0.1); color: var(--amber);
+    padding: 1px 6px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+
+  .sim-controls {
+    padding: 14px 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+
+  .sim-btn {
+    padding: 7px 14px; background: rgba(232,168,56,0.12);
+    color: var(--amber); border: 1px solid rgba(232,168,56,0.25);
+    border-radius: 6px; font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sim-btn:hover { background: rgba(232,168,56,0.22); border-color: var(--amber); }
+
+  .sim-btn.active {
+    background: var(--amber); color: var(--charcoal); border-color: var(--amber);
+  }
+
+  /* ═══════ CODE BLOCKS ═══════ */
+  .code-block {
+    background: var(--deep-charcoal); color: var(--stone);
+    padding: 24px; margin: 20px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.7;
+    white-space: pre; overflow-x: auto;
+    border-radius: 10px; position: relative;
+  }
+
+  .code-block .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--slate); padding: 3px 10px; border-radius: 4px;
+    font-family: 'Inter', sans-serif; font-size: 11px; cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .code-block .copy-btn:hover { background: rgba(255,255,255,0.12); color: var(--ivory); }
+  .code-block .copy-btn.copied { background: rgba(232,168,56,0.2); color: var(--amber); }
+  .code-block .comment { color: var(--slate); }
+  .code-block .hl { color: var(--amber); }
+
+  /* ═══════ TABLES ═══════ */
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 24px 0; font-size: 14px;
+    border-radius: 10px; overflow: hidden;
+  }
+
+  thead { background: var(--charcoal); color: var(--ivory); }
+
+  th {
+    padding: 13px 16px; text-align: left; font-weight: 600;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  td {
+    padding: 11px 16px; border-bottom: 1px solid var(--stone);
+    color: var(--deep-charcoal);
+  }
+
+  tbody tr:nth-child(even) { background: var(--cream); }
+  tbody tr { transition: background 0.15s; }
+  tbody tr:hover { background: var(--glow); }
+
+  .concept-table td:first-child { font-weight: 600; white-space: nowrap; width: 180px; }
+
+  /* ═══════ DIVIDER ═══════ */
+  .section-divider {
+    height: 3px;
+    background: linear-gradient(90deg, var(--amber) 0%, transparent 100%);
+    margin: 48px 0; border: none;
+  }
+
+  /* ═══════ PRINCIPLES ═══════ */
+  .principles { counter-reset: p; list-style: none; padding-left: 0; }
+
+  .principles li {
+    counter-increment: p; padding-left: 52px;
+    position: relative; margin-bottom: 20px;
+  }
+
+  .principles li::before {
+    content: counter(p); position: absolute; left: 0; top: 2px;
+    width: 34px; height: 34px; background: var(--amber);
+    color: var(--charcoal); font-weight: 700; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+  }
+
+  /* ═══════ FOOTER ═══════ */
+  .footer {
+    padding: 48px 40px; background: var(--charcoal);
+    text-align: center; color: var(--slate);
+    scroll-snap-align: end;
+  }
+
+  .footer .tagline {
+    font-size: 19px; font-weight: 600; color: var(--ivory); margin-bottom: 14px;
+  }
+
+  .footer .tagline span { color: var(--amber); }
+  .footer p { color: var(--slate); font-size: 13px; line-height: 2; }
+  .footer .footer-brand { margin-top: 20px; opacity: 0.4; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ═══════ RESPONSIVE ═══════ */
+  @media (max-width: 900px) {
+    .sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
+    .sidebar.open { transform: translateX(0); }
+    .main-wrap { margin-left: 0 !important; }
+    .arch-grid { grid-template-columns: 1fr 1fr; }
+    .cmd-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 480px) {
+    .content { padding: 0 20px; }
+    .arch-grid { grid-template-columns: 1fr; }
+    h2 { font-size: 24px; }
+  }
+
+  /* ═══════ PRINT ═══════ */
+  @media print {
+    .sidebar, .sidebar-toggle, .scroll-progress, .sim-controls, .copy-btn, .scroll-cue { display: none !important; }
+    .main-wrap { margin-left: 0 !important; }
+    .cover { min-height: auto; padding: 60px 40px; page-break-after: always; }
+    .reveal { opacity: 1 !important; transform: none !important; filter: none !important; }
+    .phase-body { max-height: none !important; opacity: 1 !important; padding: 24px !important; }
+    .sim-msg { opacity: 1 !important; transform: none !important; filter: none !important; }
+    .tab-panel { display: block !important; }
+    html { scroll-snap-type: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ PROGRESS ═══════ -->
+<div class="scroll-progress" id="scrollProgress"></div>
+
+<!-- ═══════ SIDEBAR TOGGLE ═══════ -->
+<button class="sidebar-toggle open" id="sidebarToggle" aria-label="Toggle navigation">
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#E8A838" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="13" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+</button>
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-wordmark">
+      <div class="brand-icon">F</div>
+      <div class="brand-text">HIGH <span>AI</span></div>
+    </div>
+    <div class="brand-sub">Bar-Ilan University</div>
+  </div>
+
+  <nav class="sidebar-nav" id="sidebarNav">
+    <div class="sidebar-label">Guide</div>
+
+    <a class="sidebar-link" href="#why" data-section="why">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2l2.5 5 5.5.8-4 3.9.9 5.3L9 14.5 4.1 17l.9-5.3-4-3.9L6.5 7z"/></svg>
+      Why We Built This
+    </a>
+    <a class="sidebar-link" href="#design" data-section="design">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="14" height="14" rx="2"/><line x1="2" y1="7" x2="16" y2="7"/><line x1="7" y1="7" x2="7" y2="16"/></svg>
+      Design Context
+    </a>
+    <a class="sidebar-link" href="#architecture" data-section="architecture">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="11" y="1" width="6" height="6" rx="1"/><rect x="1" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
+      Architecture
+    </a>
+    <a class="sidebar-link" href="#workflow" data-section="workflow">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="14" r="2"/><circle cx="14" cy="9" r="2"/><path d="M6 4h4l4 5-4 5H6"/></svg>
+      Workflow
+    </a>
+    <a class="sidebar-link" href="#commands" data-section="commands">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4,6 8,10 4,14"/><line x1="10" y1="14" x2="16" y2="14"/></svg>
+      Commands
+    </a>
+    <a class="sidebar-link" href="#demo" data-section="demo">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="7"/><polygon points="7,5.5 13,9 7,12.5" fill="currentColor" stroke="none"/></svg>
+      Live Demo
+    </a>
+    <a class="sidebar-link" href="#fine-tuning" data-section="fine-tuning">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="3"/><path d="M9 1v3M9 14v3M1 9h3M14 9h3M3.3 3.3l2.1 2.1M12.6 12.6l2.1 2.1M3.3 14.7l2.1-2.1M12.6 5.4l2.1-2.1"/></svg>
+      Fine-Tuning
+    </a>
+    <a class="sidebar-link" href="#best-practices" data-section="best-practices">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2l1.8 3.6L15 6.3l-3 2.9.7 4.1L9 11.5 5.3 13.3l.7-4.1-3-2.9 4.2-.7z"/></svg>
+      Best Practices
+    </a>
+    <a class="sidebar-link" href="#flexibility" data-section="flexibility">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4,12 9,4 14,12"/><polyline points="4,6 9,14 14,6"/></svg>
+      Flexibility
+    </a>
+    <a class="sidebar-link" href="#meta" data-section="meta">
+      <svg class="link-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9a5 5 0 0 1 10 0"/><path d="M14 9a5 5 0 0 1-10 0"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/></svg>
+      Context Engineering
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <strong>Prof. Yaniv Fox</strong><br>
+    Context Engineering for<br>Academic Knowledge Work
+  </div>
+</aside>
+
+<!-- ═══════ MAIN WRAP ═══════ -->
+<div class="main-wrap" id="mainWrap">
+
+  <!-- ── COVER ── -->
+  <div class="cover">
+    <div class="cover-brand">
+      <div class="cb-icon">F</div>
+      <div class="cb-text">HIGH <span>AI</span></div>
+    </div>
+    <h1>Building an AI<br><span>Grant Writing Agent</span></h1>
+    <p class="subtitle">From Idea to Working System &mdash; A Design Walkthrough</p>
+    <div class="cover-line"></div>
+    <div class="cover-meta">
+      <strong>Prof. Yaniv Fox</strong><br>
+      Context Engineering for Academic Knowledge Work<br>
+      Bar-Ilan University
+    </div>
+    <div class="scroll-cue">&darr; Scroll to explore</div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── WHY ── -->
+    <section id="why" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M16 3l4.5 9 10 1.5-7.2 7 1.7 10L16 25.5 6.9 30.5l1.7-10-7.2-7 10-1.5z"/></svg>
+          Why We Built This
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <p>Grant writing is one of the most consequential tasks in an academic career &mdash; and one of the worst-supported by tools. Researchers face:</p>
+        <ul>
+          <li><strong>Blank-page paralysis</strong>: Starting from nothing, with no structural guidance</li>
+          <li><strong>Invisible standards</strong>: What "works" in a funded proposal is rarely made explicit</li>
+          <li><strong>Late-stage failure</strong>: Discovering weaknesses only through rejection letters</li>
+          <li><strong>Institutional knowledge loss</strong>: Patterns from past proposals live in colleagues' heads, not in systems</li>
+        </ul>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <div class="callout">
+          What if a researcher could work with an AI system that already knows ISF requirements, has studied what makes proposals succeed or fail, and asks the hard questions reviewers will ask &mdash; before submission?
+        </div>
+        <p>The ISF Grant Proposal Agent is the answer.</p>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── DESIGN ── -->
+    <section id="design" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="3" y="3" width="26" height="26" rx="3"/><line x1="3" y1="12" x2="29" y2="12"/><line x1="12" y1="12" x2="12" y2="29"/></svg>
+          Design Context
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <h3>The Problem Space</h3>
+        <p>The Israel Science Foundation (ISF) New Principal Investigator Grant is a flagship early-career funding mechanism:</p>
+        <ul>
+          <li>20-page research proposal (15 pages plan + 5 pages bibliography)</li>
+          <li>Strict formatting: PDF, 11pt font, 1.5 line spacing, 2cm margins</li>
+          <li>Annual budget caps, overhead rules, prohibited expense categories</li>
+          <li>Evaluation on scientific excellence alone</li>
+          <li>A single submission per researcher per cycle</li>
+        </ul>
+        <div class="callout-dark"><strong>One shot. No second chances that year.</strong></div>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <h3>The Design Principle</h3>
+        <p>We did not build a "write my grant for me" tool. We built a <strong>structured collaborator</strong>:</p>
+        <ol class="principles">
+          <li><strong>Knows the rules</strong> so you don't have to memorize them</li>
+          <li><strong>Learns your patterns</strong> so it can amplify your strengths and flag your weaknesses</li>
+          <li><strong>Challenges your thinking</strong> so you face hard questions now, not in rejection letters</li>
+          <li><strong>Generates structured drafts</strong> that you then shape into your voice</li>
+        </ol>
+        <div class="callout">The researcher drives. The agent navigates.</div>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── ARCHITECTURE ── -->
+    <section id="architecture" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="2" y="2" width="11" height="11" rx="2"/><rect x="19" y="2" width="11" height="11" rx="2"/><rect x="2" y="19" width="11" height="11" rx="2"/><rect x="19" y="19" width="11" height="11" rx="2"/></svg>
+          Architecture
+        </h2>
+        <p>The agent is a system of seven specialized modules. <strong>Click any module</strong> to see what it does:</p>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <div class="arch-grid" id="archGrid">
+          <div class="arch-module" data-detail="isf-req">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><rect x="5" y="2" width="20" height="26" rx="2"/><line x1="9" y1="8" x2="21" y2="8"/><line x1="9" y1="13" x2="21" y2="13"/><line x1="9" y1="18" x2="17" y2="18"/></svg></span>
+            <span class="mod-name">ISF Requirements</span>
+            <span class="mod-file">isf-requirements-2026.md</span>
+          </div>
+          <div class="arch-module" data-detail="past-proposals">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><path d="M4 4h6l2 3h14v19H4z"/><line x1="9" y1="15" x2="21" y2="15"/><line x1="9" y1="19" x2="17" y2="19"/></svg></span>
+            <span class="mod-name">Past Proposals</span>
+            <span class="mod-file">grant-learning.md</span>
+          </div>
+          <div class="arch-module" data-detail="interview">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><circle cx="15" cy="10" r="5"/><path d="M6 26c0-5 4-9 9-9s9 4 9 9"/></svg></span>
+            <span class="mod-name">Researcher Interview</span>
+            <span class="mod-file">interview.md</span>
+          </div>
+          <div class="arch-module" data-detail="challenges">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><circle cx="15" cy="15" r="11"/><path d="M12 11c0-2 1.5-3 3-3s3 1 3 3c0 2-3 2.5-3 5"/><circle cx="15" cy="21" r="1" fill="var(--bronze)"/></svg></span>
+            <span class="mod-name">Challenging Questions</span>
+            <span class="mod-file">challenging-questions.md</span>
+          </div>
+          <div class="arch-module" data-detail="compliance">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><rect x="5" y="5" width="20" height="20" rx="3"/><polyline points="10,15 14,19 21,11"/></svg></span>
+            <span class="mod-name">Compliance Validation</span>
+            <span class="mod-file">compliance.md</span>
+          </div>
+          <div class="arch-module" data-detail="templates">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--bronze)" stroke-width="1.8"><rect x="4" y="4" width="22" height="22" rx="2"/><line x1="4" y1="11" x2="26" y2="11"/><line x1="4" y1="18" x2="26" y2="18"/><line x1="13" y1="11" x2="13" y2="26"/></svg></span>
+            <span class="mod-name">Proposal Templates</span>
+            <span class="mod-file">proposal-sections.md</span>
+          </div>
+          <div class="arch-module arch-state" data-detail="state">
+            <span class="mod-icon"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="var(--amber)" stroke-width="1.8"><rect x="6" y="8" width="18" height="14" rx="2"/><line x1="6" y1="12" x2="24" y2="12"/><circle cx="10" cy="18" r="1.5" fill="var(--amber)"/><line x1="14" y1="18" x2="20" y2="18"/></svg></span>
+            <span class="mod-name">Session State Manager</span>
+            <span class="mod-file">state-template.yaml &mdash; tracks progress, saves context, enables resume</span>
+          </div>
+        </div>
+
+        <div class="arch-detail" id="detail-isf-req"><h4>ISF Requirements Module</h4><p><strong>Binding authority.</strong> Every decision the agent makes is checked against this file. Contains the complete 2026 cycle rules: eligibility, budget caps, page limits, prohibited expenses, formatting specs, and deadlines.</p></div>
+        <div class="arch-detail" id="detail-past-proposals"><h4>Past Proposals Learning Module</h4><p><strong>Primary evidence.</strong> Adapts the agent to your specific history. Analyzes successful proposals for structural patterns, unsuccessful proposals for red flags, and reviewer feedback for concerns ranked by severity.</p></div>
+        <div class="arch-detail" id="detail-interview"><h4>Researcher Interview Module</h4><p><strong>Structured gathering.</strong> 22 questions across 4 domains. Asks 2-3 at a time, explains why each matters, allows <code>/skip</code> and <code>/back</code>. Validates critical answers before proceeding.</p></div>
+        <div class="arch-detail" id="detail-challenges"><h4>Challenging Questions Module</h4><p><strong>Socratic engine.</strong> 20+ challenges across 5 categories: Innovation, Feasibility, Aim Structure, Significance, Investigator Fit. Three intensity levels: Gentle, Moderate, and Rigorous (<code>/challenge</code>).</p></div>
+        <div class="arch-detail" id="detail-compliance"><h4>Compliance Validation Module</h4><p><strong>Automated quality gate.</strong> 30+ checks across eligibility, structure, page limits, budget, formatting, and content quality. Reports issues with specific fixes. Catches what humans miss under deadline pressure.</p></div>
+        <div class="arch-detail" id="detail-templates"><h4>Proposal Templates Module</h4><p><strong>Generation scaffolding.</strong> Templates for 8 section types: Abstract, Background, Aims, Methods, Innovation, Budget, Risk, Bibliography. Each defines structure, rules, and ISF constraints.</p></div>
+        <div class="arch-detail" id="detail-state"><h4>Session State Manager</h4><p><strong>Memory and continuity.</strong> YAML tracking current phase, researcher info, project info, challenges posed, sections drafted, compliance results. Enables pause/resume across conversations.</p></div>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <h3>Why Modular?</h3>
+        <ul>
+          <li><strong>Maintainability</strong>: Update ISF requirements by editing one file</li>
+          <li><strong>Extensibility</strong>: Add a new funder by creating new modules</li>
+          <li><strong>Transparency</strong>: Every instruction the agent follows is readable</li>
+          <li><strong>Teachability</strong>: Each module demonstrates a context engineering pattern</li>
+        </ul>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── WORKFLOW ── -->
+    <section id="workflow" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="26" r="3"/><circle cx="26" cy="16" r="3"/><path d="M9 6h8l9 10-9 10H9"/></svg>
+          The Seven-Phase Workflow
+        </h2>
+        <p><strong>Click any phase</strong> to expand:</p>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <div class="phase-timeline">
+          <div class="phase-item"><div class="phase-dot">1</div><div class="phase-header"><span class="phase-badge">Phase 1</span><span class="phase-title">Initialization</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p><strong>What happens:</strong> Confirm grant type, scan past proposals folder, pose three foundational challenges.</p><ol><li><em>Innovation:</em> What makes your approach genuinely novel?</li><li><em>Feasibility:</em> What is the biggest obstacle?</li><li><em>Significance:</em> Who will change what they do based on your results?</li></ol><p>These are the three pillars reviewers evaluate. If you can't answer them clearly, no amount of polished prose will save the proposal.</p></div></div>
+          <div class="phase-item"><div class="phase-dot">2</div><div class="phase-header"><span class="phase-badge">Phase 2</span><span class="phase-title">Requirements Research</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p><strong>What happens:</strong> Load ISF guidelines, present eligibility criteria, budget limits, page limits, formatting requirements, and deadlines.</p><p><strong>Why it matters:</strong> A proposal that violates page limits or includes prohibited expenses is dead on arrival.</p></div></div>
+          <div class="phase-item"><div class="phase-dot">3</div><div class="phase-header"><span class="phase-badge">Phase 3</span><span class="phase-title">Past Proposal Analysis</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p><strong>What happens:</strong> Read every proposal in <code>past-proposals/</code> and extract actionable patterns.</p><p><strong>From successful:</strong> aim organization, abstract flow, preliminary data presentation.</p><p><strong>From unsuccessful:</strong> red flag phrases, structural weaknesses, vague methodology.</p><p><strong>From reviews:</strong> concerns database ranked by frequency and severity.</p></div></div>
+          <div class="phase-item"><div class="phase-dot">4</div><div class="phase-header"><span class="phase-badge">Phase 4</span><span class="phase-title">Information Gathering</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p><strong>What happens:</strong> Structured interview &mdash; 22 questions across 4 domains, with challenges at section transitions.</p><table><thead><tr><th>Section</th><th>Questions</th><th>Challenge Focus</th></tr></thead><tbody><tr><td>Eligibility &amp; Background</td><td>5</td><td>&mdash;</td></tr><tr><td>Research Project Core</td><td>8</td><td>Aim independence, innovation</td></tr><tr><td>Resources &amp; Timeline</td><td>5</td><td>Timeline realism, contingency</td></tr><tr><td>Track Record</td><td>4</td><td>Investigator fit</td></tr></tbody></table></div></div>
+          <div class="phase-item"><div class="phase-dot">5</div><div class="phase-header"><span class="phase-badge">Phase 5</span><span class="phase-title">Content Generation</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p><strong>What happens:</strong> Draft each section using learned patterns, check for red flags, verify against concerns, challenge before showing draft, iterate until approved.</p><p><strong>Sections:</strong> Abstract, Background, Aims, Methods, Innovation, Budget, Risk Mitigation, Bibliography.</p></div></div>
+          <div class="phase-item"><div class="phase-dot">6</div><div class="phase-header"><span class="phase-badge">Phase 6</span><span class="phase-title">Compliance Check</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p>30+ validation checks: Eligibility, Structure, Page limits, Budget, Formatting, Content quality. Reports issues with fixes, re-validates after changes.</p></div></div>
+          <div class="phase-item"><div class="phase-dot">7</div><div class="phase-header"><span class="phase-badge">Phase 7</span><span class="phase-title">Final Assembly</span><svg class="phase-chevron" viewBox="0 0 18 18" fill="none" stroke="var(--slate)" stroke-width="2"><polyline points="4,6 9,12 14,6"/></svg></div><div class="phase-body"><p>Compile all approved sections, generate submission checklist, provide next steps for the ISF portal.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── COMMANDS ── -->
+    <section id="commands" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="6,10 14,18 6,26"/><line x1="18" y1="26" x2="28" y2="26"/></svg>
+          Commands Reference
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <div class="tabs">
+          <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="nav-cmds">Navigation</button>
+            <button class="tab-btn" data-tab="learn-cmds">Learning</button>
+            <button class="tab-btn" data-tab="challenge-cmds">Challenges</button>
+          </div>
+          <div class="tab-panel active" id="nav-cmds">
+            <div class="cmd-grid">
+              <div class="cmd-card"><span class="cmd-name">/status</span><span class="cmd-desc">Show current phase and progress</span></div>
+              <div class="cmd-card"><span class="cmd-name">/skip</span><span class="cmd-desc">Skip the current question</span></div>
+              <div class="cmd-card"><span class="cmd-name">/back</span><span class="cmd-desc">Return to previous question</span></div>
+              <div class="cmd-card"><span class="cmd-name">/preview</span><span class="cmd-desc">Show current proposal draft</span></div>
+              <div class="cmd-card"><span class="cmd-name">/requirements</span><span class="cmd-desc">Re-display ISF requirements</span></div>
+              <div class="cmd-card"><span class="cmd-name">/help</span><span class="cmd-desc">List all available commands</span></div>
+            </div>
+          </div>
+          <div class="tab-panel" id="learn-cmds">
+            <div class="cmd-grid">
+              <div class="cmd-card"><span class="cmd-name">/learn-from-grant</span><span class="cmd-desc">Upload and analyze a past proposal</span></div>
+              <div class="cmd-card"><span class="cmd-name">/learn-from-reviews</span><span class="cmd-desc">Add reviewer feedback</span></div>
+              <div class="cmd-card"><span class="cmd-name">/show-learnings</span><span class="cmd-desc">Display all learnings</span></div>
+              <div class="cmd-card"><span class="cmd-name">/check-learnings</span><span class="cmd-desc">Validate draft against learnings</span></div>
+              <div class="cmd-card"><span class="cmd-name">/patterns</span><span class="cmd-desc">Show successful patterns</span></div>
+              <div class="cmd-card"><span class="cmd-name">/concerns</span><span class="cmd-desc">Show reviewer concerns database</span></div>
+              <div class="cmd-card"><span class="cmd-name">/compare</span><span class="cmd-desc">Compare draft to funded examples</span></div>
+              <div class="cmd-card"><span class="cmd-name">/redflags</span><span class="cmd-desc">Scan for warning phrases</span></div>
+            </div>
+          </div>
+          <div class="tab-panel" id="challenge-cmds">
+            <div class="cmd-grid">
+              <div class="cmd-card"><span class="cmd-name">/challenge</span><span class="cmd-desc">Harder questions on current topic</span></div>
+              <div class="cmd-card"><span class="cmd-name">/challenge [topic]</span><span class="cmd-desc">Challenge a specific area</span></div>
+              <div class="cmd-card"><span class="cmd-name">/challenges</span><span class="cmd-desc">List all challenges and responses</span></div>
+              <div class="cmd-card"><span class="cmd-name">/devil</span><span class="cmd-desc">Devil's advocate &mdash; no easy passes</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── DEMO ── -->
+    <section id="demo" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="16" cy="16" r="12"/><polygon points="13,10 23,16 13,22" fill="var(--amber)" stroke="none"/></svg>
+          Live Demo
+        </h2>
+        <p><strong>Click a scenario</strong> to watch the conversation unfold:</p>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <div class="sim-container">
+          <div class="sim-toolbar"><div class="sim-dot r"></div><div class="sim-dot y"></div><div class="sim-dot g"></div><div class="sim-title">Claude Code &mdash; ISF Grant Agent</div></div>
+          <div class="sim-body" id="simBody">
+            <div class="sim-msg agent" style="opacity:1;transform:none;filter:none"><div class="sim-role">Agent</div><div class="sim-text">Choose a scenario below to see the agent in action.</div></div>
+          </div>
+          <div class="sim-controls">
+            <button class="sim-btn" data-scenario="init">Session Start</button>
+            <button class="sim-btn" data-scenario="challenge">Challenge Mode</button>
+            <button class="sim-btn" data-scenario="learning">Learning from Proposals</button>
+            <button class="sim-btn" data-scenario="redflags">Red Flag Detection</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── FINE-TUNING ── -->
+    <section id="fine-tuning" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="16" cy="16" r="5"/><path d="M16 2v6M16 24v6M2 16h6M24 16h6M5.9 5.9l4.2 4.2M21.9 21.9l4.2 4.2M5.9 26.1l4.2-4.2M21.9 10.1l4.2-4.2"/></svg>
+          Fine-Tuning with Past Grants
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <p><strong>Successful proposals</strong> &mdash; the agent extracts structural patterns, narrative qualities, and best practices.</p>
+        <p><strong>Unsuccessful proposals</strong> &mdash; the agent identifies weaknesses, red flag phrases, missing elements.</p>
+        <p><strong>Reviewer feedback</strong> &mdash; the agent builds a concerns database ranked by frequency and severity.</p>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="hl">your-project/</span>
+&#9500;&#9472;&#9472; past-proposals/
+&#9474;   &#9500;&#9472;&#9472; successful/
+&#9474;   &#9474;   &#9492;&#9472;&#9472; 2024_my_funded_proposal.pdf
+&#9474;   &#9500;&#9472;&#9472; unsuccessful/
+&#9474;   &#9474;   &#9492;&#9472;&#9472; 2023_my_rejected_proposal.pdf
+&#9474;   &#9492;&#9472;&#9472; reviews/
+&#9474;       &#9492;&#9472;&#9472; 2023_reviewer_feedback.pdf</div>
+        <div class="callout"><strong>The more you provide, the better.</strong> One proposal gives signal. Three give a pattern. Reviewer feedback completes the picture.</div>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── BEST PRACTICES ── -->
+    <section id="best-practices" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M16 3l3.2 6.5 7.2 1-5.2 5.1 1.2 7.2L16 19.5l-6.4 3.3 1.2-7.2L5.6 10.5l7.2-1z"/></svg>
+          Best Practices
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <h3>1. Set Up Your CLAUDE.md First</h3>
+        <p>The agent's persistent context &mdash; it reads this at every session start.</p>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># ISF New PI Grant Proposal</span>
+
+<span class="hl">## Researcher Profile</span>
+- Name: [Your name]
+- Institution: [Your institution]
+- Field: [Your research field]
+
+<span class="hl">## Project Overview</span>
+[2-3 sentence summary]
+
+<span class="hl">## My Preferences</span>
+- Citation style: APA 7th
+- Tone: Confident but not overselling</div>
+        <h3>2. Front-Load Past Proposals</h3>
+        <p>Add them <em>before</em> starting the session. Phase 3 is most effective with materials from the start.</p>
+        <h3>3. Take Challenges Seriously</h3>
+        <p>If you struggle with the foundational challenges, that's valuable &mdash; your narrative needs more work.</p>
+        <h3>4. Don't Rush the Interview</h3>
+        <p>Detailed answers here directly improve generated drafts. Use <code>/skip</code> if you need time.</p>
+        <h3>5. Iterate on Drafts</h3>
+        <p>The first draft is a starting point. Tell the agent what to change.</p>
+        <h3>6. Use Devil's Advocate</h3>
+        <p>Run <code>/devil</code> before finalizing any section. If it survives, it'll likely survive peer review.</p>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── FLEXIBILITY ── -->
+    <section id="flexibility" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="8,22 16,6 24,22"/><polyline points="8,10 16,26 24,10"/></svg>
+          Flexibility
+        </h2>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <p>The seven-phase workflow is a guide, not a cage.</p>
+        <ul>
+          <li><strong>Jump to any section</strong> &mdash; draft methods before finishing the interview</li>
+          <li><strong>Focus on one challenge</strong> &mdash; spend an entire session on a single question</li>
+          <li><strong>Use as a reviewer</strong> &mdash; paste an existing draft, ask for critique</li>
+          <li><strong>Budget-only mode</strong> &mdash; compliance and budget checking only</li>
+          <li><strong>Learn-only mode</strong> &mdash; analyze past proposals without starting a new one</li>
+        </ul>
+        <h3>Adapting for Other Funders</h3>
+        <p>The architecture is funder-agnostic. Create a new requirements module, update compliance, adjust templates. Interview, challenges, learning, and state management all transfer directly.</p>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ── META ── -->
+    <section id="meta" class="snap-section">
+      <div class="reveal">
+        <h2>
+          <svg class="h-icon" viewBox="0 0 32 32" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M6 16a10 10 0 0 1 20 0"/><path d="M26 16a10 10 0 0 1-20 0"/><circle cx="16" cy="16" r="3" fill="var(--amber)" stroke="none"/></svg>
+          Context Engineering
+        </h2>
+        <p>This agent is a case study in the course's core concepts:</p>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <table class="concept-table">
+          <thead><tr><th>Concept</th><th>How the Agent Demonstrates It</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Context hierarchy</strong></td><td>ISF requirements are binding; past proposals are evidence; templates are scaffolding</td></tr>
+            <tr><td><strong>Modular context</strong></td><td>Each module is replaceable, updatable, transparent</td></tr>
+            <tr><td><strong>State management</strong></td><td>Session YAML enables pause/resume across conversations</td></tr>
+            <tr><td><strong>Socratic interaction</strong></td><td>Challenges are the mechanism that produces quality</td></tr>
+            <tr><td><strong>Learning from examples</strong></td><td>Few-shot learning made explicit and auditable</td></tr>
+            <tr><td><strong>Compliance as validation</strong></td><td>30+ checks catch what humans miss under pressure</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">Every module is readable. Every decision is traceable. Context engineering is about systems you can understand, maintain, and trust.</div>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+
+  <div class="footer">
+    <p class="tagline">Built for researchers who would rather think about <span>science</span> than formatting.</p>
+    <p>
+      <strong>Prof. Yaniv Fox</strong><br>
+      Context Engineering for Academic Knowledge Work<br>
+      High AI &mdash; Bar-Ilan University
+    </p>
+    <div class="footer-brand">HIGH AI</div>
+  </div>
+
+</div><!-- /main-wrap -->
+
+<script>
+// ── Sidebar Toggle ──
+const sidebar = document.getElementById('sidebar');
+const toggle = document.getElementById('sidebarToggle');
+const mainWrap = document.getElementById('mainWrap');
+let sidebarOpen = window.innerWidth > 900;
+
+function updateSidebar() {
+  if (sidebarOpen) {
+    sidebar.classList.remove('collapsed');
+    mainWrap.classList.remove('expanded');
+    toggle.classList.add('open');
+  } else {
+    sidebar.classList.add('collapsed');
+    mainWrap.classList.add('expanded');
+    toggle.classList.remove('open');
+  }
+}
+
+if (window.innerWidth <= 900) { sidebarOpen = false; }
+updateSidebar();
+
+toggle.addEventListener('click', () => { sidebarOpen = !sidebarOpen; updateSidebar(); });
+
+// Close sidebar on mobile after click
+document.querySelectorAll('.sidebar-link').forEach(link => {
+  link.addEventListener('click', () => {
+    if (window.innerWidth <= 900) { sidebarOpen = false; updateSidebar(); }
+  });
+});
+
+// ── Scroll Progress ──
+const scrollProgress = document.getElementById('scrollProgress');
+const sidebarLinks = document.querySelectorAll('.sidebar-link');
+const sections = document.querySelectorAll('section[id]');
+
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  scrollProgress.style.width = (scrollTop / docHeight * 100) + '%';
+
+  let current = '';
+  sections.forEach(s => { if (scrollTop >= s.offsetTop - 140) current = s.id; });
+
+  sidebarLinks.forEach(link => {
+    link.classList.toggle('active', link.dataset.section === current);
+  });
+}, { passive: true });
+
+// ── Reveal ──
+const revealObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.06, rootMargin: '0px 0px -30px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+// ── Architecture ──
+document.querySelectorAll('.arch-module').forEach(mod => {
+  mod.addEventListener('click', () => {
+    const id = 'detail-' + mod.dataset.detail;
+    const det = document.getElementById(id);
+    const wasActive = mod.classList.contains('active');
+
+    document.querySelectorAll('.arch-module').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.arch-detail').forEach(d => d.classList.remove('show'));
+
+    if (!wasActive && det) { mod.classList.add('active'); det.classList.add('show'); }
+  });
+});
+
+// ── Phase Timeline ──
+document.querySelectorAll('.phase-item').forEach(item => {
+  item.querySelector('.phase-header').addEventListener('click', () => {
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.phase-item').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  });
+});
+
+// ── Tabs ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabs = btn.closest('.tabs');
+    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    tabs.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Copy ──
+function copyCode(btn) {
+  const code = btn.parentElement.textContent.replace(/^Copy|^Copied!/,'').trim();
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Simulator ──
+const scenarios = {
+  init: [
+    { role:'user', text:'<code>/isf</code>' },
+    { role:'agent', text:"I'm your ISF Grant Proposal Assistant.\n\nI found <strong>3 past proposals</strong> in your repository:\n&bull; <strong>Successful:</strong> 2024_cognitive_intervention.pdf\n&bull; <strong>Unsuccessful:</strong> 2023_neural_mechanisms.pdf\n&bull; <strong>Reviews:</strong> 2023_neural_mechanisms_reviews.pdf\n\nI'll analyze these to learn what works and what to avoid." },
+    { role:'agent', text:"Before we begin, three fundamental challenges:\n\n<strong>1. INNOVATION:</strong> What makes your approach genuinely novel?\n\n<strong>2. FEASIBILITY:</strong> What's the biggest obstacle, and how will you handle it?\n\n<strong>3. SIGNIFICANCE:</strong> Who will change what they do based on your results?\n\nYour answers will shape how we build your proposal." }
+  ],
+  challenge: [
+    { role:'user', text:"My project uses EEG to study decision-making under uncertainty." },
+    { role:'agent', text:"<strong>Challenge:</strong>\n\nIf I search for \"EEG + decision-making + uncertainty,\" I'll find hundreds of papers. <strong>How is yours different?</strong>\n\nA skeptical reviewer might say: <em>\"This is just standard ERP analysis applied to a new task.\"</em>" },
+    { role:'user', text:"We're combining EEG with computational modeling of belief updating." },
+    { role:'agent', text:"<strong>Better.</strong> Now: which technique have you <em>never done before</em> &mdash; the EEG, the modeling, or the integration?\n\nWhat's your plan if the model fits poorly to the neural data?" },
+    { role:'user', text:'<code>/challenge feasibility</code>' },
+    { role:'agent', text:"<strong>Rigorous mode activated.</strong>\n\nYour power analysis &mdash; what sample size? What effect size, and is that from pilot data or literature?\n\nIf recruitment takes twice as long, what's Plan B?\n\nWhat's the <em>minimum</em> dataset that would let you publish?" }
+  ],
+  learning: [
+    { role:'user', text:'<code>/learn-from-grant</code>' },
+    { role:'agent', text:"Share a past proposal. Is it <strong>successful</strong> (funded) or <strong>unsuccessful</strong> (rejected)?" },
+    { role:'user', text:"Funded. Here's 2024_cognitive_intervention.pdf" },
+    { role:'agent', text:"<strong>Analysis complete.</strong>\n\n<strong>Patterns to replicate:</strong>\n&bull; Abstract: Problem &rarr; Gap &rarr; Approach &rarr; Innovation &rarr; Impact\n&bull; Each aim has hypothesis + prediction + alternative interpretation\n&bull; Preliminary data: 3 pilots, each N > 20\n\n<strong>Narrative qualities:</strong>\n&bull; \"strong evidence\" not \"we believe\"\n&bull; Innovation framed as filling a methodological gap\n\nI'll apply these when generating your sections." },
+    { role:'user', text:'<code>/patterns</code>' },
+    { role:'agent', text:"<strong>Learned patterns:</strong>\n\n&#10004; Independent aims with standalone deliverables\n&#10004; Explicit power analysis with specific numbers\n&#10004; Named statistical methods\n&#10004; Contingency plan for every major risk\n&#10004; Distributed timeline across all years" }
+  ],
+  redflags: [
+    { role:'user', text:'<code>/redflags</code>' },
+    { role:'agent', text:"<strong>Scanning current draft...</strong>" },
+    { role:'agent', text:"<strong>4 red flags detected:</strong>\n\n<strong>1.</strong> \"We <strong>anticipate</strong> that results will confirm...\"\n<em>Fix: \"We hypothesize that X, based on preliminary data showing Y.\"</em>\n\n<strong>2.</strong> \"using <strong>appropriate statistical methods</strong>\"\n<em>Fix: \"Bayesian hierarchical models, compared via WAIC.\"</em>\n\n<strong>3.</strong> \"<strong>If time permits</strong>, we will also...\"\n<em>Fix: If it's not essential, cut it.</em>\n\n<strong>4.</strong> \"Sample size will be <strong>sufficient</strong>\"\n<em>Fix: Provide specific N, effect size, and power.</em>" }
+  ]
+};
+
+const simBody = document.getElementById('simBody');
+
+document.querySelectorAll('.sim-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    simBody.innerHTML = '';
+
+    scenarios[btn.dataset.scenario].forEach((msg, i) => {
+      setTimeout(() => {
+        const div = document.createElement('div');
+        div.className = 'sim-msg ' + msg.role;
+        div.innerHTML = '<div class="sim-role">' + (msg.role === 'agent' ? 'Agent' : 'You') + '</div><div class="sim-text">' + msg.text.replace(/\n/g,'<br>') + '</div>';
+        simBody.appendChild(div);
+        requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('visible')));
+        simBody.scrollTop = simBody.scrollHeight;
+      }, i * 900);
+    });
+  });
+});
+</script>
+</body>
+</html>
