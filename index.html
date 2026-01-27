@@ -1709,10 +1709,16 @@ updateSidebar();
 
 toggle.addEventListener('click', () => { sidebarOpen = !sidebarOpen; updateSidebar(); });
 
-// Close sidebar on mobile after click
+// Close sidebar on mobile after click + reveal target section content
 document.querySelectorAll('.sidebar-link:not(.has-sub)').forEach(link => {
   link.addEventListener('click', () => {
     if (window.innerWidth <= 900) { sidebarOpen = false; updateSidebar(); }
+    // Immediately reveal all .reveal elements in the target section
+    const sectionId = link.dataset.section;
+    const section = sectionId && document.getElementById(sectionId);
+    if (section) {
+      section.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+    }
   });
 });
 
@@ -1756,7 +1762,7 @@ window.addEventListener('scroll', () => {
 // ── Reveal ──
 const revealObs = new IntersectionObserver(entries => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.06, rootMargin: '0px 0px -30px 0px' });
+}, { threshold: 0.01, rootMargin: '0px 0px 200px 0px' });
 
 document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
 
