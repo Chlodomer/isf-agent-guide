@@ -21,7 +21,7 @@
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+  html { scroll-behavior: smooth; }
 
   body {
     font-family: 'Inter', -apple-system, sans-serif;
@@ -198,7 +198,6 @@
     color: var(--ivory); text-align: center;
     padding: 80px 40px;
     position: relative; overflow: hidden;
-    scroll-snap-align: start;
   }
 
   .cover::before {
@@ -288,7 +287,6 @@
   }
 
   .snap-section {
-    scroll-snap-align: start;
     padding-top: 72px;
     padding-bottom: 40px;
     min-height: 50vh;
@@ -870,7 +868,6 @@
   .footer {
     padding: 48px 40px; background: var(--charcoal);
     text-align: center; color: var(--slate);
-    scroll-snap-align: end;
   }
 
   .footer .tagline {
@@ -912,7 +909,7 @@
     .sim-msg { opacity: 1 !important; transform: none !important; filter: none !important; }
     .tab-panel { display: block !important; }
     .chapter-children { max-height: none !important; }
-    html { scroll-snap-type: none; }
+    html { }
   }
 </style>
 </head>
