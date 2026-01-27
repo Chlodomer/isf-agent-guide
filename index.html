@@ -265,6 +265,42 @@
     animation: coverFade 1s 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  /* ═══════ COVER VIDEO ═══════ */
+  .cover-video-wrap {
+    position: relative; width: min(780px, 90vw); aspect-ratio: 16/9;
+    border-radius: 12px; overflow: hidden;
+    margin-bottom: 36px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(232,168,56,0.15);
+    animation: coverFade 1s 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    cursor: pointer;
+  }
+
+  .cover-video-wrap video {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+  }
+
+  .cover-video-play {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(28,28,28,0.45);
+    transition: background 0.3s, opacity 0.3s;
+  }
+
+  .cover-video-play.hidden { opacity: 0; pointer-events: none; }
+
+  .cover-video-wrap:hover .cover-video-play:not(.hidden) {
+    background: rgba(28,28,28,0.3);
+  }
+
+  .cover-video-play svg {
+    width: 64px; height: 64px;
+    filter: drop-shadow(0 2px 12px rgba(0,0,0,0.4));
+    transition: transform 0.2s;
+  }
+
+  .cover-video-wrap:hover .cover-video-play svg { transform: scale(1.1); }
+
   .cover .scroll-cue {
     position: absolute; bottom: 36px;
     animation: cueFloat 2.5s ease-in-out infinite;
@@ -1000,6 +1036,14 @@
     </div>
     <h1>The ISF<br><span>Grant Writing Agent</span></h1>
     <p class="subtitle">Complete Guide &mdash; From Setup to Submission</p>
+    <div class="cover-video-wrap" id="coverVideo">
+      <video id="coverVid" preload="metadata" playsinline>
+        <source src="grant-agent-video.mp4" type="video/mp4">
+      </video>
+      <div class="cover-video-play" id="coverPlayBtn">
+        <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="rgba(232,168,56,0.9)"/><polygon points="26,20 26,44 46,32" fill="#1C1C1C"/></svg>
+      </div>
+    </div>
     <div class="cover-line"></div>
     <div class="cover-meta">
       <strong>Prof. Yaniv Fox</strong><br>
@@ -1689,6 +1733,24 @@
 </div><!-- /main-wrap -->
 
 <script>
+// ── Cover Video Player ──
+(function() {
+  const wrap = document.getElementById('coverVideo');
+  const vid = document.getElementById('coverVid');
+  const playBtn = document.getElementById('coverPlayBtn');
+  if (!wrap || !vid) return;
+  wrap.addEventListener('click', () => {
+    if (vid.paused) {
+      vid.play();
+      playBtn.classList.add('hidden');
+    } else {
+      vid.pause();
+      playBtn.classList.remove('hidden');
+    }
+  });
+  vid.addEventListener('ended', () => { playBtn.classList.remove('hidden'); });
+})();
+
 // ── Sidebar Toggle ──
 const sidebar = document.getElementById('sidebar');
 const toggle = document.getElementById('sidebarToggle');
